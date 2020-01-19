@@ -1,0 +1,175 @@
+#!/bin/bash
+
+# Copyright (c) 2020 jm1hey
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+# Version
+script_version="1.5"
+
+# The purpose of this script is described in the 'printhelp' function defined below.
+
+# define command name -- this should be the same as the script file name
+cmdname="srchbin"
+
+# define usage and help functions
+function printusage {
+	echo \
+"
+Usage: $cmdname SEARCH_TERM [OPTION(s)]
+
+Options:
+	--help
+		Print help information and exit
+
+	--version
+		Print version information and exit
+
+	--case-sensitive | -c
+		Make the search case-sensitive
+
+	--full-path | -f
+		Print each result as a full path
+
+"
+}
+
+function printhelp {
+	echo \
+"
+$cmdname is a Bash script that searches the locations specified
+in the current environment PATH variable for files whose names
+contain a given search term. It is useful for determining
+forgotten command names and finding unknown commands."
+	printusage
+}
+
+function printversion {
+	echo "$script_version"
+}
+
+# check for sufficient number of arguments
+if [ $# -lt 1 ]
+then
+	printusage
+	exit 1
+fi
+
+# check for "--help" argument
+for i in "$@"
+do
+	if [ "$i" == "--help" ]
+	then
+		# print help text
+		printhelp
+		exit 0
+	fi
+done
+
+# check for "--version" argument
+for i in "$@"
+do
+	if [ "$i" == "--version" ]
+	then
+		printversion
+		exit 0
+	fi
+done
+
+# process arguments
+## check for "--case-sensitive"
+num_i=1
+for i in "$@"
+do
+	if [ "$i" == "--case-sensitive" ] || [ "$i" == "-c" ]
+	then
+		case_sens=1
+		argvalid[$num_i]=1
+	fi
+	num_i=$((num_i+1))
+done
+if [ -z "$case_sens" ]
+then
+	# default
+	case_sens=0
+fi
+
+## check for "--full-path"
+num_i=1
+for i in "$@"
+do
+	if [ "$i" == "--full-path" ] || [ "$i" == "-f" ]
+	then
+		full_path=1
+		argvalid[$num_i]=1
+	fi
+	num_i=$((num_i+1))
+done
+if [ -z "$full_path" ]
+then
+	# default
+	full_path=0
+fi
+
+# get search term
+num_i=1
+for i in "$@"
+do
+	if [ "${i:0:1}" != "-" ] && [ -z $search_term_found ]
+	then
+		search_term="$i"
+		search_term_found=1
+		argvalid[$num_i]=1
+	fi
+	num_i=$((num_i+1))
+done
+
+# reject invalid arguments
+num_i=1
+for i in "$@"
+do
+	if [ "${argvalid[$num_i]}" != 1 ]
+	then
+		printf "Invalid argument: \"%s\"\n" "$i"
+		invalid_arg=1
+	fi
+	num_i=$((num_i+1))
+done
+if ! [ -z $invalid_arg ]
+then
+	exit 1
+fi
+
+# process settings
+if [ $case_sens == 1 ]
+then
+	namearg="name"
+else
+	namearg="iname"
+fi
+
+# loop through PATH directories
+IFS=":"
+for pathdir in $PATH
+do
+	if ! [ -d "$pathdir" ]
+	then
+		continue
+	fi
+	unset IFS
+	for result in $(find "$pathdir" -maxdepth 1 -"$namearg" "*""$search_term""*" "!" -type d)
+	do
+		if [ $full_path == 1 ]
+		then
+			echo "$result"
+		else
+			echo "${result##*/}"
+		fi
+	done
+	IFS=":"
+done
+unset IFS
